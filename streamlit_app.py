@@ -278,4 +278,4 @@ if st.button("Clear Chat"):
 
 # Footer
 st.markdown("---")
-st.markdown("*This is an AI healthcare assistant. For medical emergencies, please call emergency services.*")
+
