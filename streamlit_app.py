@@ -181,8 +181,7 @@ def handle_user_input():
         # Add user message to chat history
         st.session_state.chat_history.append({
             "role": "user",
-            "content": user_message,
-            "timestamp": datetime.now().strftime("%H:%M"),
+            "content": user_message
         })
         
         # Analyze the message and determine the appropriate agent
@@ -202,16 +201,17 @@ def handle_user_input():
         st.session_state.chat_history.append({
             "role": "assistant",
             "content": response,
-            "agent": final_agent,
-            "timestamp": datetime.now().strftime("%H:%M"),
+            "agent": final_agent
         })
+        
+        # Clear the input box
+        st.session_state.user_input = ""
         
         # Mark as submitted
         st.session_state.user_submitted = True
         
         # Rerun the app
         st.rerun()
-
 
 # Streamlit UI
 st.title("Healthcare Assistant")
@@ -247,13 +247,13 @@ st.markdown("### Conversation")
 for message in st.session_state.chat_history:
     if message["role"] == "user":
         with st.chat_message("user"):
-            st.write(f"{message['timestamp']} - You: {message['content']}")
+            st.write(f"You: {message['content']}")
     else:
         with st.chat_message("assistant", avatar="👨‍⚕️"):
             agent = message.get("agent", "Triage Agent")
             st.markdown(
                 f'<div style="padding:5px;border-radius:3px;background-color:{AGENT_COLORS[agent]};margin-bottom:5px">'
-                f'{message["timestamp"]} - {agent}</div>',
+                f'{agent}</div>',
                 unsafe_allow_html=True
             )
             st.write(message["content"])
@@ -263,7 +263,7 @@ st.text_input(
     "Type your message here...",
     key="user_input",
     on_change=handle_user_input,
-    value=""
+    value=st.session_state.get("user_input", "")
 )
 
 if st.session_state.user_submitted:
