@@ -1,0 +1,16 @@
+# Core dependencies
+streamlit
+openai
+python-dotenv
+
+# Date and time handling
+python-dateutil
+
+# Type hints support
+typing-extensions
+
+# JSON handling
+jsonschema
+
+# Optional but recommended for better performance
+streamlit-extras
