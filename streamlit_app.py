@@ -210,7 +210,7 @@ def handle_user_input():
         st.session_state.user_submitted = True
         
         # Rerun the app
-        st.experimental_rerun()
+        st.rerun()
 
 
 # Streamlit UI
@@ -274,7 +274,7 @@ if st.button("Clear Chat"):
     st.session_state.chat_history = []
     st.session_state.current_agent = "Triage Agent"
     st.session_state.user_submitted = False
-    st.experimental_rerun()
+    st.rerun()
 
 # Footer
 st.markdown("---")
