@@ -9,11 +9,17 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-# Set up OpenAI API key
-if 'OPENAI_API_KEY' not in os.environ:
-    os.environ['OPENAI_API_KEY'] = os.getenv('OPENAI_API_KEY')
+try:
+    # First try to get from Streamlit secrets
+    if 'OPENAI_API_KEY' not in os.environ:
+        os.environ['OPENAI_API_KEY'] = st.secrets['OPENAI_API_KEY']
+    
     if not os.environ['OPENAI_API_KEY']:
-        raise ValueError("OPENAI_API_KEY not found in environment variables or .env file")
+        st.error("OpenAI API key not found! Please configure it in your secrets.")
+        st.stop()
+except Exception as e:
+    st.error("Error loading OpenAI API key from secrets. Please check your configuration.")
+    st.stop()
 
 # Initialize OpenAI client
 client = OpenAI()
