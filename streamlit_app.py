@@ -4,17 +4,8 @@ from datetime import datetime
 from openai import OpenAI
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
-
-# Set up OpenAI API key
-if 'OPENAI_API_KEY' not in os.environ:
-    os.environ['OPENAI_API_KEY'] = os.getenv('OPENAI_API_KEY')
-    if not os.environ['OPENAI_API_KEY']:
-        raise ValueError("OPENAI_API_KEY not found in environment variables or .env file")
-
-# Initialize OpenAI client
-client = OpenAI()
+# Load API key from Streamlit secrets
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # Initialize session states for both chatbots
 if "chat_history_1" not in st.session_state:
@@ -129,7 +120,6 @@ AGENT_INSTRUCTIONS_2 = {
     5. Assist with prototyping strategies"""
 }
 
-# Functions for first chatbot
 def analyze_message_for_routing(message: str) -> str:
     try:
         response = client.chat.completions.create(
@@ -172,7 +162,6 @@ def get_agent_response_1(message: str, agent_type: str, chat_history: list) -> t
     except Exception as e:
         return f"Error: Unable to get response. Please try again. ({str(e)})", agent_type
 
-# Functions for second chatbot
 def get_agent_response_2(message: str, agent_type: str, chat_history: list) -> str:
     try:
         messages = [
@@ -220,7 +209,7 @@ def handle_user_input_1():
         })
         
         st.session_state.user_submitted_1 = True
-        st.experimental_rerun()
+        st.rerun()
 
 def handle_user_input_2():
     if st.session_state.user_input_2 and not st.session_state.user_submitted_2:
@@ -248,7 +237,7 @@ def handle_user_input_2():
         })
         
         st.session_state.user_submitted_2 = True
-        st.experimental_rerun()
+        st.rerun()
 
 # Main UI
 st.title("Product Management Assistant")
@@ -305,7 +294,7 @@ with tab1:
         st.session_state.chat_history_1 = []
         st.session_state.current_agent_1 = "Triage Agent"
         st.session_state.user_submitted_1 = False
-        st.experimental_rerun()
+        st.rerun()
 
 with tab2:
     st.write("Chat with all agents simultaneously")
@@ -360,7 +349,7 @@ with tab2:
     if st.button("Clear Chat", key="clear_2"):
         st.session_state.chat_history_2 = []
         st.session_state.user_submitted_2 = False
-        st.experimental_rerun()
+        st.rerun()
 
 # Footer
 st.markdown("---")
