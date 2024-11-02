@@ -1,145 +1,145 @@
 import streamlit as st
 import os
-from datetime import datetime, timedelta
-import json
-from typing import Dict
+from datetime import datetime
 from openai import OpenAI
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
 
-try:
-    # First try to get from Streamlit secrets
-    if 'OPENAI_API_KEY' not in os.environ:
-        os.environ['OPENAI_API_KEY'] = st.secrets['OPENAI_API_KEY']
-    
+# Set up OpenAI API key
+if 'OPENAI_API_KEY' not in os.environ:
+    os.environ['OPENAI_API_KEY'] = os.getenv('OPENAI_API_KEY')
     if not os.environ['OPENAI_API_KEY']:
-        st.error("OpenAI API key not found! Please configure it in your secrets.")
-        st.stop()
-except Exception as e:
-    st.error("Error loading OpenAI API key from secrets. Please check your configuration.")
-    st.stop()
+        raise ValueError("OPENAI_API_KEY not found in environment variables or .env file")
 
 # Initialize OpenAI client
 client = OpenAI()
 
-# Initialize session states
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
+# Initialize session states for both chatbots
+if "chat_history_1" not in st.session_state:
+    st.session_state.chat_history_1 = []
 
-if "current_agent" not in st.session_state:
-    st.session_state.current_agent = "Triage Agent"
+if "chat_history_2" not in st.session_state:
+    st.session_state.chat_history_2 = []
 
-if "user_submitted" not in st.session_state:
-    st.session_state.user_submitted = False
+if "current_agent_1" not in st.session_state:
+    st.session_state.current_agent_1 = "Triage Agent"
+
+if "current_agent_2" not in st.session_state:
+    st.session_state.current_agent_2 = "All Agents"
+
+if "user_submitted_1" not in st.session_state:
+    st.session_state.user_submitted_1 = False
+
+if "user_submitted_2" not in st.session_state:
+    st.session_state.user_submitted_2 = False
 
 # Agent Colors for visual distinction
-AGENT_COLORS = {
-    "Triage Agent": "#FF9999",        # Light Red
-    "Medical Advice Agent": "#99FF99", # Light Green
-    "Appointment Scheduling Agent": "#9999FF",  # Light Blue
-    "Prescription Details Agent": "#FFFF99",    # Light Yellow
-    "Fitness and Exercise Agent": "#4682B4",    # Steel Blue
-    "Women's Health Agent": "#FF69B4"           # Hot Pink
+AGENT_COLORS_1 = {
+    "Triage Agent": "#FF9999",           # Light Red
+    "Product Strategy Agent": "#99FF99",  # Light Green
+    "Market Research Agent": "#9999FF",   # Light Blue
+    "Technical Advisor Agent": "#FFFF99", # Light Yellow
+    "UX Design Agent": "#FF69B4"         # Hot Pink
 }
 
-# Utility Functions
-def get_next_wednesday():
-    today = datetime.now()
-    days_ahead = (2 - today.weekday() + 7) % 7
-    next_wednesday = today + timedelta(days=days_ahead)
-    return next_wednesday.strftime("%Y-%m-%d")
+AGENT_COLORS_2 = {
+    "Product Strategy Agent": "#99FF99",  # Light Green
+    "Market Research Agent": "#9999FF",   # Light Blue
+    "Technical Advisor Agent": "#FFFF99", # Light Yellow
+    "UX Design Agent": "#FF69B4"         # Hot Pink
+}
 
-def get_appointments() -> Dict:
-    return st.session_state.get('appointments', {})
-
-def save_appointments(appointments):
-    st.session_state.appointments = appointments
-
-def book_appointment(date: str, time: str) -> str:
-    appointments = get_appointments()
-    appointment_key = f"{date}_{time}"
-    
-    if appointment_key in appointments:
-        return f"Sorry, the time slot for {date} at {time} is already booked."
-    
-    appointments[appointment_key] = {
-        "date": date,
-        "time": time,
-        "booked_at": datetime.now().isoformat()
-    }
-    
-    save_appointments(appointments)
-    return f"Appointment booked successfully for {date} at {time}."
-
-def agent_book_appointment(date: str = "next_wednesday", time: str = "15:00") -> dict:
-    if date == "next_wednesday":
-        date = get_next_wednesday()
-    result = book_appointment(date, time)
-    success = "successfully" in result
-    return {"result": result, "success": success, "date": date, "time": time}
-
-# Agent system messages
-AGENT_INSTRUCTIONS = {
-    "Triage Agent": """You are a healthcare triage agent and the first point of contact. Your role is to:
-    1. Greet new users warmly
-    2. Analyze user messages and route them to the appropriate specialist:
-       - For symptoms and health concerns → Medical Advice Agent
-       - For appointment scheduling → Appointment Scheduling Agent
-       - For medication questions → Prescription Details Agent
+# Agent system messages for first chatbot
+AGENT_INSTRUCTIONS_1 = {
+    "Triage Agent": """You are a product management triage agent and the first point of contact. Your role is to:
+    1. Greet users professionally
+    2. Analyze queries and route them to the appropriate specialist:
+       - For product strategy, roadmap, and vision → Product Strategy Agent
+       - For market analysis, competitive research → Market Research Agent
+       - For technical feasibility and implementation → Technical Advisor Agent
+       - For user experience and design → UX Design Agent
     3. If user message is unclear, ask clarifying questions
-    4. Always maintain a professional and caring tone
+    4. Always maintain a professional and solution-oriented tone
     
     Important: You must ALWAYS determine which specialist agent should handle the query and explicitly state the transfer.""",
     
-    "Medical Advice Agent": """You are a medical professional providing general medical advice.
-    1. Listen carefully to symptoms
-    2. Provide general health guidance
-    3. Always remind users to seek professional medical help for serious conditions
-    4. Be detailed but cautious in your advice
-    5. If user asks about medications or appointments, indicate need to transfer back to Triage Agent""",
+    "Product Strategy Agent": """You are a product strategy specialist.
+    1. Help define product vision and strategy
+    2. Assist with roadmap planning and prioritization
+    3. Provide guidance on product-market fit
+    4. Help with feature prioritization frameworks
+    5. Offer solutions for product positioning
+    6. For technical or UX-specific queries, indicate need to transfer back to Triage Agent""",
     
-    "Appointment Scheduling Agent": """You are an appointment scheduler.
-    1. Help users book healthcare appointments efficiently
-    2. You can book appointments using the book_appointment function
-    3. If user asks for 'next Wednesday', use that directly as the date parameter
-    4. For medical advice or prescription queries, indicate need to transfer back to Triage Agent""",
+    "Market Research Agent": """You are a market research and analysis expert.
+    1. Provide market analysis frameworks
+    2. Help with competitive analysis
+    3. Guide user research methodologies
+    4. Assist with market sizing and opportunity assessment
+    5. Offer insights on market trends
+    6. For strategy or technical queries, indicate need to transfer back to Triage Agent""",
     
-    "Prescription Details Agent": """You are a pharmacist providing medication information.
-    1. Provide general information about medications
-    2. Explain common side effects and interactions
-    3. Never prescribe medications
-    4. Always recommend consulting a doctor for specific prescriptions
-    5. For medical advice or appointment queries, indicate need to transfer back to Triage Agent""",
+    "Technical Advisor Agent": """You are a technical advisor for product development.
+    1. Assess technical feasibility of features
+    2. Provide implementation guidance
+    3. Help with technical architecture decisions
+    4. Offer solutions for technical challenges
+    5. Guide API and integration strategies
+    6. For strategy or UX queries, indicate need to transfer back to Triage Agent""",
     
-    "Fitness and Exercise Agent": """You are a fitness coach providing exercise advice and information.
-    1. Offer general fitness tips and exercise recommendations
-    2. Discuss basic workout routines for different fitness levels
-    3. Provide information on exercise safety and injury prevention
-    4. Emphasize the importance of consulting a healthcare professional before starting new exercise regimens
-    5. For medical advice or nutrition queries, indicate need to transfer back to Triage Agent""",
-    
-    "Women's Health Agent": """You are a women's health specialist providing information on women's health issues.
-1. Offer general information on women's health topics (e.g., menstruation, menopause, pregnancy)
-2. Discuss common women's health concerns and preventive care
-3. Provide guidance on when to seek professional medical advice
-4. Maintain a sensitive and supportive tone
-5. For specific medical advice or appointment queries, indicate need to transfer back to Triage Agent"""
+    "UX Design Agent": """You are a UX design specialist.
+    1. Provide user experience best practices
+    2. Guide interface design decisions
+    3. Help with user flow optimization
+    4. Offer solutions for usability challenges
+    5. Assist with prototyping strategies
+    6. For technical or market research queries, indicate need to transfer back to Triage Agent"""
 }
 
+# Agent system messages for second chatbot
+AGENT_INSTRUCTIONS_2 = {
+    "Product Strategy Agent": """You are a product strategy specialist.
+    1. Help define product vision and strategy
+    2. Assist with roadmap planning and prioritization
+    3. Provide guidance on product-market fit
+    4. Help with feature prioritization frameworks
+    5. Offer solutions for product positioning""",
+    
+    "Market Research Agent": """You are a market research and analysis expert.
+    1. Provide market analysis frameworks
+    2. Help with competitive analysis
+    3. Guide user research methodologies
+    4. Assist with market sizing and opportunity assessment
+    5. Offer insights on market trends""",
+    
+    "Technical Advisor Agent": """You are a technical advisor for product development.
+    1. Assess technical feasibility of features
+    2. Provide implementation guidance
+    3. Help with technical architecture decisions
+    4. Offer solutions for technical challenges
+    5. Guide API and integration strategies""",
+    
+    "UX Design Agent": """You are a UX design specialist.
+    1. Provide user experience best practices
+    2. Guide interface design decisions
+    3. Help with user flow optimization
+    4. Offer solutions for usability challenges
+    5. Assist with prototyping strategies"""
+}
+
+# Functions for first chatbot
 def analyze_message_for_routing(message: str) -> str:
-    """Analyze message content to determine appropriate agent"""
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": """Analyze the following message and determine which specialist should handle it:
-                - If about symptoms/health concerns → 'Medical Advice Agent'
-                - If about appointments → 'Appointment Scheduling Agent'
-                - If about medications → 'Prescription Details Agent'
-                - If about fitness or exercise → 'Fitness and Exercise Agent'
-                - If about women's health → 'Women's Health Agent'
+                - If about product strategy/roadmap → 'Product Strategy Agent'
+                - If about market/competition → 'Market Research Agent'
+                - If about technical feasibility → 'Technical Advisor Agent'
+                - If about user experience/design → 'UX Design Agent'
                 - If unclear or general → 'Triage Agent'
                 Only respond with the exact agent name."""},
                 {"role": "user", "content": message}
@@ -148,16 +148,14 @@ def analyze_message_for_routing(message: str) -> str:
             max_tokens=1000
         )
         suggested_agent = response.choices[0].message.content.strip()
-        return suggested_agent if suggested_agent in AGENT_INSTRUCTIONS else "Triage Agent"
+        return suggested_agent if suggested_agent in AGENT_INSTRUCTIONS_1 else "Triage Agent"
     except Exception:
         return "Triage Agent"
 
-def get_agent_response(message: str, agent_type: str, chat_history: list) -> tuple:
-    """Get response from agent"""
+def get_agent_response_1(message: str, agent_type: str, chat_history: list) -> tuple:
     try:
-        # Include relevant chat history for context
         messages = [
-            {"role": "system", "content": AGENT_INSTRUCTIONS[agent_type]},
+            {"role": "system", "content": AGENT_INSTRUCTIONS_1[agent_type]},
             {"role": "user", "content": message}
         ]
         
@@ -174,108 +172,196 @@ def get_agent_response(message: str, agent_type: str, chat_history: list) -> tup
     except Exception as e:
         return f"Error: Unable to get response. Please try again. ({str(e)})", agent_type
 
-def handle_user_input():
-    if st.session_state.user_input and not st.session_state.user_submitted:
-        user_message = st.session_state.user_input
+# Functions for second chatbot
+def get_agent_response_2(message: str, agent_type: str, chat_history: list) -> str:
+    try:
+        messages = [
+            {"role": "system", "content": AGENT_INSTRUCTIONS_2[agent_type]},
+            {"role": "user", "content": message}
+        ]
         
-        # Add user message to chat history
-        st.session_state.chat_history.append({
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            temperature=0.7,
+            max_tokens=1000
+        )
+        
+        return response.choices[0].message.content
+        
+    except Exception as e:
+        return f"Error: Unable to get response from {agent_type}. Please try again. ({str(e)})"
+
+def handle_user_input_1():
+    if st.session_state.user_input_1 and not st.session_state.user_submitted_1:
+        user_message = st.session_state.user_input_1
+        
+        st.session_state.chat_history_1.append({
             "role": "user",
-            "content": user_message
+            "content": user_message,
+            "timestamp": datetime.now().strftime("%H:%M"),
         })
         
-        # Analyze the message and determine the appropriate agent
         new_agent = analyze_message_for_routing(user_message)
         
-        # Get response from the appropriate agent
-        response, final_agent = get_agent_response(
+        response, final_agent = get_agent_response_1(
             user_message, 
             new_agent,
-            st.session_state.chat_history
+            st.session_state.chat_history_1
         )
         
-        # Update current agent
-        st.session_state.current_agent = final_agent
+        st.session_state.current_agent_1 = final_agent
         
-        # Add assistant response to chat history
-        st.session_state.chat_history.append({
+        st.session_state.chat_history_1.append({
             "role": "assistant",
             "content": response,
-            "agent": final_agent
+            "agent": final_agent,
+            "timestamp": datetime.now().strftime("%H:%M"),
         })
         
-        # Clear the input box
-        st.session_state.user_input = ""
-        
-        # Mark as submitted
-        st.session_state.user_submitted = True
-        
-        # Rerun the app
-        st.rerun()
+        st.session_state.user_submitted_1 = True
+        st.experimental_rerun()
 
-# Streamlit UI
-st.title("Healthcare Assistant")
-st.write("Welcome to your AI Healthcare Assistant! How can I help you today?")
+def handle_user_input_2():
+    if st.session_state.user_input_2 and not st.session_state.user_submitted_2:
+        user_message = st.session_state.user_input_2
+        
+        st.session_state.chat_history_2.append({
+            "role": "user",
+            "content": user_message,
+            "timestamp": datetime.now().strftime("%H:%M"),
+        })
+        
+        responses = {}
+        for agent_type in AGENT_INSTRUCTIONS_2.keys():
+            response = get_agent_response_2(
+                user_message, 
+                agent_type,
+                st.session_state.chat_history_2
+            )
+            responses[agent_type] = response
+        
+        st.session_state.chat_history_2.append({
+            "role": "assistant",
+            "content": responses,
+            "timestamp": datetime.now().strftime("%H:%M"),
+        })
+        
+        st.session_state.user_submitted_2 = True
+        st.experimental_rerun()
 
-# Sidebar
-with st.sidebar:
-    st.header("Current Agent")
-    st.markdown(
-        f'<div style="padding:10px;border-radius:5px;background-color:{AGENT_COLORS[st.session_state.current_agent]}">Speaking with: {st.session_state.current_agent}</div>',
-        unsafe_allow_html=True
-    )
+# Main UI
+st.title("Product Management Assistant")
+
+# Create tabs
+tab1, tab2 = st.tabs(["Single Agent Chatbot", "Multi-Agent Chatbot"])
+
+with tab1:
+    st.write("Chat with a single agent at a time, starting with the Triage Agent")
     
-    # Agent Color Legend
-    st.header("Agent Types")
-    for agent, color in AGENT_COLORS.items():
+    # Sidebar for first chatbot
+    with st.sidebar:
+        st.header("Current Agent")
         st.markdown(
-            f'<div style="padding:5px;border-radius:3px;background-color:{color};margin:2px">{agent}</div>',
+            f'<div style="padding:10px;border-radius:5px;background-color:{AGENT_COLORS_1[st.session_state.current_agent_1]}">Speaking with: {st.session_state.current_agent_1}</div>',
             unsafe_allow_html=True
         )
-    
-    st.header("Appointment Calendar")
-    appointments = get_appointments()
-    if appointments:
-        st.write("Current Appointments:")
-        for key, value in appointments.items():
-            st.write(f"📅 {value['date']} at {value['time']}")
-    else:
-        st.write("No appointments scheduled")
-
-# Chat interface
-st.markdown("### Conversation")
-for message in st.session_state.chat_history:
-    if message["role"] == "user":
-        with st.chat_message("user"):
-            st.write(f"You: {message['content']}")
-    else:
-        with st.chat_message("assistant", avatar="👨‍⚕️"):
-            agent = message.get("agent", "Triage Agent")
+        
+        st.header("Agent Types")
+        for agent, color in AGENT_COLORS_1.items():
             st.markdown(
-                f'<div style="padding:5px;border-radius:3px;background-color:{AGENT_COLORS[agent]};margin-bottom:5px">'
-                f'{agent}</div>',
+                f'<div style="padding:5px;border-radius:3px;background-color:{color};margin:2px">{agent}</div>',
                 unsafe_allow_html=True
             )
-            st.write(message["content"])
+    
+    # Chat interface for first chatbot
+    st.markdown("### Conversation")
+    for message in st.session_state.chat_history_1:
+        if message["role"] == "user":
+            with st.chat_message("user"):
+                st.write(f"{message['timestamp']} - You: {message['content']}")
+        else:
+            with st.chat_message("assistant", avatar="💡"):
+                agent = message.get("agent", "Triage Agent")
+                st.markdown(
+                    f'<div style="padding:5px;border-radius:3px;background-color:{AGENT_COLORS_1[agent]};margin-bottom:5px">'
+                    f'{message["timestamp"]} - {agent}</div>',
+                    unsafe_allow_html=True
+                )
+                st.write(message["content"])
+    
+    # Chat input for first chatbot
+    st.text_input(
+        "Type your message here...",
+        key="user_input_1",
+        on_change=handle_user_input_1,
+        value=""
+    )
+    
+    if st.session_state.user_submitted_1:
+        st.session_state.user_submitted_1 = False
+    
+    if st.button("Clear Chat", key="clear_1"):
+        st.session_state.chat_history_1 = []
+        st.session_state.current_agent_1 = "Triage Agent"
+        st.session_state.user_submitted_1 = False
+        st.experimental_rerun()
 
-# Chat input
-st.text_input(
-    "Type your message here...",
-    key="user_input",
-    on_change=handle_user_input,
-    value=st.session_state.get("user_input", "")
-)
-
-if st.session_state.user_submitted:
-    st.session_state.user_submitted = False
-
-# Add a clear chat button
-if st.button("Clear Chat"):
-    st.session_state.chat_history = []
-    st.session_state.current_agent = "Triage Agent"
-    st.session_state.user_submitted = False
-    st.rerun()
+with tab2:
+    st.write("Chat with all agents simultaneously")
+    
+    # Sidebar for second chatbot
+    with st.sidebar:
+        st.header("Agents View")
+        st.markdown(
+            '<div style="padding:10px;border-radius:5px;background-color:#DDDDDD">All agents will respond to your query</div>',
+            unsafe_allow_html=True
+        )
+        
+        st.header("Agent Types")
+        for agent, color in AGENT_COLORS_2.items():
+            st.markdown(
+                f'<div style="padding:5px;border-radius:3px;background-color:{color};margin:2px">{agent}</div>',
+                unsafe_allow_html=True
+            )
+    
+    # Chat interface for second chatbot
+    st.markdown("### Conversation")
+    for message in st.session_state.chat_history_2:
+        if message["role"] == "user":
+            with st.chat_message("user"):
+                st.write(f"{message['timestamp']} - You: {message['content']}")
+        else:
+            with st.chat_message("assistant", avatar="💡"):
+                st.write(f"{message['timestamp']} - Agent Responses:")
+                
+                responses = message["content"]
+                if isinstance(responses, dict):
+                    for agent, response in responses.items():
+                        with st.expander(f"{agent} Response", expanded=False):
+                            st.markdown(
+                                f'<div style="padding:5px;border-radius:3px;background-color:{AGENT_COLORS_2[agent]};margin-bottom:5px">'
+                                f'{agent}</div>',
+                                unsafe_allow_html=True
+                            )
+                            st.write(response)
+    
+    # Chat input for second chatbot
+    st.text_input(
+        "Type your message here...",
+        key="user_input_2",
+        on_change=handle_user_input_2,
+        value=""
+    )
+    
+    if st.session_state.user_submitted_2:
+        st.session_state.user_submitted_2 = False
+    
+    if st.button("Clear Chat", key="clear_2"):
+        st.session_state.chat_history_2 = []
+        st.session_state.user_submitted_2 = False
+        st.experimental_rerun()
 
 # Footer
 st.markdown("---")
-
+st.markdown("*This is an AI product management assistant with two different interaction modes.*")
